@@ -14,15 +14,13 @@ from __future__ import print_function
 
 import inspect
 import imp
-from pkg_resources import resource_filename
-import pickle
 import sys
 import os
 import logging
+import json
 
 import scipy
 import numpy as np
-import random
 
 from . import utils
 
@@ -32,8 +30,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
                     stream=sys.stdout)
 
 
-def main(network_path, image_batch_size=100, stride=25,
-         images_folder='data_road/roadC621/'):
+def main(hypes_file):
     """
     Train a neural network with patches of patch_size x patch_size.
 
@@ -41,15 +38,23 @@ def main(network_path, image_batch_size=100, stride=25,
 
     Parameters
     ----------
-    network_path : str
-        Path to a Python script with a function generate_nnet(feats) which
-        returns a neural network
+    hypes_file : str
+        Path to a JSON
+    test_images_json : str
+        Path to a JSON which is a list of dicts {'raw': path, 'mask': path}
     image_batch_size : int
     stride : int
     """
+    with open(hypes_file) as data_file:
+        hypes = json.load(data_file)
+    print(hypes)
+    network_path = hypes['segmenter']['network_path']
+    train_images_json = hypes['data']['train']
+    image_batch_size = hypes['training']['batchsize']
     assert image_batch_size >= 1
+    stride = hypes['training']['stride']
     assert stride >= 1
-    features, labels = load_data_raw_images(train_images_folder=images_folder)
+    features, labels = load_data_raw_images(images_json_path=train_images_json)
     logging.info("len(features)=%i", len(features))
     logging.info("features.shape=%s", features.shape)
     logging.info("features.shape=%s", labels.shape)
@@ -106,14 +111,14 @@ def main(network_path, image_batch_size=100, stride=25,
                      labeled_patches[1].shape)
         net1 = train_nnet(labeled_patches, net1, nn_params)
 
-    model_pickle_name = 'nnet1-trained.pickle'
+    model_pickle_name = hypes["segmenter"]["serialized_model_path"]
     utils.serialize_model(net1,
                           filename=model_pickle_name,
                           parameters=nn_params)
 
 
 def load_data_raw_images(serialization_path='data.pickle',
-                         train_images_folder='data_road/roadC621/'):
+                         images_json_path='data.json'):
     """
     Load color images (3 channels) and labels (as images).
 
@@ -126,27 +131,10 @@ def load_data_raw_images(serialization_path='data.pickle',
 
     if not os.path.exists(data_source):
         # build lists of files which will be read
-        path_data = os.path.join(os.environ['DATA_PATH'],
-                                 train_images_folder,
-                                 "image_2/")
-        files_data = [os.path.join(path_data, f)
-                      for f in sorted(os.listdir(path_data))
-                      if f.endswith('.png')]
-
-        path_gt = os.path.join(os.environ['DATA_PATH'],
-                               train_images_folder,
-                               "gt_image_2/")
-        files_gt = [os.path.join(path_gt, f)
-                    for f in sorted(os.listdir(path_gt))
-                    if f.endswith('.png')]
-        if not os.path.isfile('training.pickle') or \
-           not os.path.isfile('testing.pickle'):
-            logging.info("Write training.pickle and testing.pickle")
-            write_files(files_data, files_gt)
-
-        filelist_tuples = read_filelist('training.pickle')
+        train_filelist = utils.get_labeled_filelist(images_json_path)
         files_data, files_gt = [], []
-        for file_data, file_gt in filelist_tuples:
+        for train_el in train_filelist:
+            file_data, file_gt = train_el['raw'], train_el['mask']
             files_data.append(file_data)
             files_gt.append(file_gt)
 
@@ -193,44 +181,6 @@ def load_data_raw_images(serialization_path='data.pickle',
         xs_colored = npzfile['arr_0']
         yl = npzfile['arr_1']
     return (xs_colored, yl)
-
-
-def write_files(files_data, files_gt, training_ratio=0.8):
-    """Split list of images into training and test set.
-
-    Parameters
-    ----------
-    files_data : list of str
-        Paths to data files
-    files_gt : list of str
-        Paths to ground truth (same order as data images)
-    """
-    zipped = list(zip(files_data, files_gt))
-    random.shuffle(zipped)
-    assert 0.1 <= training_ratio <= 1.0, 'wrong training ratio'
-    split_to = int(len(zipped) * training_ratio)
-    with open('training.pickle', 'wb') as f:
-        pickle.dump(zipped[:split_to], f)
-    with open('testing.pickle', 'wb') as f:
-        pickle.dump(zipped[split_to:], f)
-
-
-def read_filelist(filename):
-    """
-    Read the filelist.
-
-    Parameters
-    ----------
-    filename : str
-        Path to a .pickle file
-
-    Returns
-    -------
-    list of tuples [(path to data, path to ground truth)]
-    """
-    with open(filename, 'rb') as f:
-        files = pickle.load(f)
-    return files
 
 
 def get_patches(xs, ys, nn_params, stride=49):
@@ -350,7 +300,8 @@ def get_features(labeled_patches, nn_params):
 
 
 def train_nnet(labeled_patches, net1, nn_params):
-    """Train a neural network classifier on the patches.
+    """
+    Train a neural network classifier on the patches.
 
     Parameters
     ----------
@@ -370,29 +321,16 @@ def get_parser():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     parser = ArgumentParser(description=__doc__,
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--stride",
-                        dest="stride",
-                        default=20,
-                        type=int,
-                        help=("stride to run over the images - influences "
-                              "amount of training data"))
-    parser.add_argument("--batchsize",
-                        dest="batchsize",
-                        default=100,
-                        type=int,
-                        help=("batches"))
-    parser.add_argument("--network",
-                        dest="network",
-                        default=resource_filename('sst.networks',
-                                                  'fully_simple.py'),
+    parser.add_argument("--hypes",
+                        dest="hypes_file",
                         type=str,
-                        help=("path to a Python file with "
-                              "generate_nnet(feats)"))
+                        required=True,
+                        help=("path to a JSON file with "
+                              "contains 'data' (with 'train' and 'test') as "
+                              "well as 'classes' (with 'colors' for each)"))
     return parser
 
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
-    main(network_path=args.network,
-         stride=args.stride,
-         image_batch_size=args.batchsize)
+    main(hypes_file=args.hypes_file)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Street Segmentation Tools"""
+"""Executable for the street segmentation toolkit (sst)."""
 
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -73,20 +73,18 @@ def get_parser():
 
 
 def main(args):
+    """Call subcommands."""
     if args.cmd == 'selfcheck':
         selfcheck.main()
     elif args.cmd == 'eval':
-        eval_image.main(image_path=args.image_path,
+        eval_image.main(hypes_file=args.hypes_file,
+                        image_path=args.image_path,
                         output_path=args.output_path,
-                        model_path_trained=args.model_path_trained,
                         stride=args.stride)
     elif args.cmd == 'test':
-        test.main(args.model_path_trained,
-                  args.stride)
+        test.main(args.hypes_file)
     elif args.cmd == 'train':
-        train.main(network_path=args.network,
-                   stride=args.stride,
-                   image_batch_size=args.batchsize)
+        train.main(hypes_file=args.hypes_file)
     elif args.cmd == 'serve':
         serve.main(args.port, args.model_path_trained)
     elif args.cmd == 'view':

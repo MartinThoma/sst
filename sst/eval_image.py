@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
-Segment pixel-wise street/not street for a single image with a lasagne model.
-"""
+"""Segment pixel-wise street/not street for a single image with a model."""
 import logging
 import sys
 import time
+import json
 
 
 logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
@@ -15,25 +14,28 @@ logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
 
 import scipy
 import numpy as np
-import pickle
 
 # sst modules
 from . import utils
 
 
-def main(image_path, output_path, model_path_trained, stride,
+def main(hypes_file, image_path, output_path, stride,
          hard_classification=True):
+    """Evaluate a model."""
+    with open(hypes_file) as data_file:
+        hypes = json.load(data_file)
     with Timer() as t:
-        nn, parameters = utils.deserialize_model(model_path_trained)
-    assert stride <= parameters['patch_size']
-    logging.info("Patch size: %i", parameters['patch_size'])
-    logging.info("Fully: %s", str(parameters['fully']))
+        model_pickle = hypes['segmenter']['serialized_model_path']
+        nn, nn_params = utils.deserialize_model(model_pickle)
+    assert stride <= nn_params['patch_size']
+    logging.info("Patch size: %i", nn_params['patch_size'])
+    logging.info("Fully: %s", str(nn_params['fully']))
     logging.info("Stride: %i", stride)
     logging.info("=> elasped deserialize model: %s s", t.secs)
     with Timer() as t:
         result = eval_net(trained=nn,
                           photo_path=image_path,
-                          parameters=parameters,
+                          nn_params=nn_params,
                           stride=stride,
                           hard_classification=hard_classification)
     logging.info("=> elasped evaluating model: %s s", t.secs)
@@ -49,6 +51,8 @@ def eval_net(trained,
              hard_classification=True,
              verbose=False):
     """
+    Eval a model.
+
     Parameters
     ----------
     trained : theano expression
@@ -63,7 +67,6 @@ def eval_net(trained,
         If False, the image will show probabilities.
     verbose : bool
     """
-
     patch_size = nn_params['patch_size']
     fully = nn_params['fully']
 
@@ -207,19 +210,21 @@ def eval_net(trained,
         return result
 
 
-def eval_pickle(trained, parameters, test_pickle_path, stride=1):
+def eval_pickle(trained, nn_params, images_json_path, stride=1):
     """
+    Eval a model.
+
     Parameters
     ----------
     trained : theano expression
         A trained neural network
-    parameters : dict
-        parameters relevant for the model (e.g. patch size)
-    test_pickle_path : str
-        Path to a pickle file
+    nn_params : dict
+        nn_params relevant for the model (e.g. patch size)
+    images_json_path : str
+        Path to a JSON file
     """
-    with open(test_pickle_path, 'rb') as f:
-        list_tuples = pickle.load(f)
+    train_filelist = utils.get_labeled_filelist(images_json_path)
+    list_tuples = [(el['raw'], el['mask']) for el in train_filelist]
 
     total_results = {'tp': 0,
                      'tn': 0,
@@ -233,11 +238,12 @@ def eval_pickle(trained, parameters, test_pickle_path, stride=1):
         logging.info("Processing image: %s of %s", i + 1, len(list_tuples))
         result = eval_net(trained,
                           photo_path=data_image_path,
-                          parameters=parameters,
+                          nn_params=nn_params,
                           stride=stride)
         tmp = get_error_matrix(result, gt_image_path)
         for key, val in tmp.items():
             total_results[key] += val
+    print(total_results)
     relative_results['tp'] = (float(total_results['tp']) /
                               (total_results['tp'] + total_results['fn']))
     relative_results['fn'] = (float(total_results['fn']) /
@@ -252,10 +258,10 @@ def eval_pickle(trained, parameters, test_pickle_path, stride=1):
                  total_results['fn'])
     logging.info("Negative Examples: %s ", total_results['fp'] +
                  total_results['tn'])
-    logging.info("Accurity: %s ", float((total_results['tp']
-                                        + total_results['tn'])) /
-                 (total_results['tp'] + total_results['fn']
-                  + total_results['fp'] + total_results['tn']))
+    logging.info("Accurity: %s ", float((total_results['tp'] +
+                                        total_results['tn'])) /
+                 (total_results['tp'] + total_results['fn'] +
+                  total_results['fp'] + total_results['tn']))
     logging.info("%i images evaluated.", len(list_tuples))
 
 
@@ -282,7 +288,7 @@ def get_error_matrix(result, gt_image_path):
     new_img = np.zeros(img.shape)
     for i, row in enumerate(img):
         for j, pixel in enumerate(row):
-            new_img[i][j] = (105 == pixel)
+            new_img[i][j] = (pixel != 0)
     for gt, predict in zip(new_img.flatten(), result.flatten()):
         if gt == 0:
             if predict == 0:
@@ -313,6 +319,7 @@ def scale_output(classify_image, new_shape):
 
 
 def get_parser():
+    """Get parser object."""
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     parser = ArgumentParser(description=__doc__,
                             formatter_class=ArgumentDefaultsHelpFormatter)
@@ -327,21 +334,31 @@ def get_parser():
                         help='store semantic segmentation here',
                         default="out.png",
                         metavar='IMAGE')
-    parser.add_argument('-m', '--model',
-                        dest='model_path_trained',
-                        help='path to the trained .caffe model file',
-                        default=utils.get_model_path(),
-                        metavar='MODEL')
     parser.add_argument("--stride",
                         dest="stride",
                         default=10,
                         type=int,
                         help=("the higher this value, the longer the "
                               "evaluation takes, but the more accurate it is"))
+    parser.add_argument("--hypes",
+                        dest="hypes_file",
+                        type=str,
+                        required=True,
+                        help=("path to a JSON file with "
+                              "contains 'data' (with 'train' and 'test') as "
+                              "well as 'classes' (with 'colors' for each)"))
     return parser
 
 
 class Timer(object):
+    """
+    Timer.
+
+    Attributes
+    ----------
+    verbose : boolean
+    """
+
     def __init__(self, verbose=False):
         self.verbose = verbose
 
@@ -359,7 +376,7 @@ class Timer(object):
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
-    main(image_path=args.image_path,
+    main(hypes_file=args.hypes_file,
+         image_path=args.image_path,
          output_path=args.output_path,
-         model_path_trained=args.model_path_trained,
          stride=args.stride)

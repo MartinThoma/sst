@@ -5,13 +5,14 @@
 
 import numpy as np
 import pickle
-import Image
+from PIL import Image
 import os
 import logging
 import scipy
 import scipy.misc
 import sys
 import pkg_resources
+import json
 
 
 def make_equal(features, ys):
@@ -27,7 +28,8 @@ def make_equal(features, ys):
     tuple of two ndarray
     """
     min_count = min(len(ys) - sum(ys), sum(ys))
-    assert min_count > 0, "min_count=%i (should be much bigger than 0" % min_count
+    assert min_count > 0, (("min_count=%i (should be much bigger "
+                            "than 0") % min_count)
     is_street = 0
     no_street = 0
     X_new, y_new = [], []
@@ -81,6 +83,7 @@ def deserialize_model(filename):
 
 
 def load_image_patch(filename):
+    """Load image as normalized flat numpy array."""
     im = Image.open(filename)  # .convert('L')
     width, height = im.size
     pixels = list(im.getdata())
@@ -91,6 +94,7 @@ def load_image_patch(filename):
 
 
 def load_image(filename):
+    """Load image as normalized numpy array."""
     im = Image.open(filename)  # .convert('L')
     width, height = im.size
     pixels = list(im.getdata())
@@ -104,8 +108,11 @@ def overlay_images(original_image,
                    overlay,
                    output_path,
                    hard_classification=True,):
-    """ Overlay original_image with segmentation_image and store the result
-    with the same name as segmentation_image, but with `-overlay`.
+    """
+    Overlay original_image with segmentation_image.
+
+    Store the result with the same name as segmentation_image, but with
+    `-overlay`.
 
     Parameters
     ----------
@@ -161,6 +168,7 @@ def overlay_images(original_image,
 
 
 def get_overlay_name(segmentation_name):
+    """Get the appropriate name for an overlay."""
     splitted = segmentation_name.split('.')
     splitted[-2] = splitted[-2] + '-overlay'
     output_path = '.'.join(splitted)
@@ -193,8 +201,13 @@ def find_street_color(im):
 
 
 def is_valid_file(parser, arg):
-    """Check if arg is a valid file that already exists on the file
-       system.
+    """
+    Check if arg is a valid file that already exists on the file system.
+
+    Parameters
+    ----------
+    parser : object
+    arg : str
     """
     arg = os.path.abspath(arg)
     if not os.path.exists(arg):
@@ -230,6 +243,8 @@ def sizeof_fmt(num, suffix='B'):
 
 def get_model_path():
     """
+    Get the path of a model pickle file.
+
     Returns
     -------
     str
@@ -240,5 +255,59 @@ def get_model_path():
 
 
 def get_default_data_image_path():
+    """Get the default image path."""
     misc_path = pkg_resources.resource_filename('sst', 'misc/')
     return os.path.abspath(os.path.join(misc_path, "um_000000.png"))
+
+
+def get_labeled_filelist(json_file_list_path):
+    """
+    Get a list of raw image files and mask files.
+
+    Parameters
+    ----------
+    json_file_list_path : str
+        Path to a json file which contains a list of dictionaries with the
+        keys 'raw' and 'mask'
+
+    Returns
+    -------
+    list
+        List of dicts {'raw': Absolute path to file,
+                       'mask': Absolute path to file}
+    """
+    with open(json_file_list_path) as data_file:
+        data = json.load(data_file)
+    for i, training_data_item in enumerate(data):
+        if 'raw' not in training_data_item:
+            raise ValueError(("could not find 'raw' in item %i of JSON file "
+                              "'%s'") % (i, json_file_list_path))
+        elif 'mask' not in training_data_item:
+            raise ValueError(("could not find 'raw' in item %i of JSON file "
+                              "'%s'") % (i, json_file_list_path))
+        elif not os.path.isfile(training_data_item['raw']):
+            raise ValueError(("could not find file '%s' specified in item %i "
+                              "as raw") % (json_file_list_path['raw'], i))
+        elif not os.path.isfile(training_data_item['mask']):
+            raise ValueError(("could not find file '%s' specified in item %i "
+                              "as mask") % (json_file_list_path['mask'], i))
+        with Image.open(training_data_item['raw']) as im:
+            im = Image.open(training_data_item['raw'])
+            raw_width, raw_height = im.size
+        with Image.open(training_data_item['mask']) as im:
+            im = Image.open(training_data_item['mask'])
+            mask_width, mask_height = im.size
+        if raw_width != mask_width:
+            raise ValueError(("raw_width = %i != %i = mask_width of "
+                              "raw(%s) and mask(%s)") %
+                             (raw_width, mask_width,
+                              json_file_list_path['raw'],
+                              json_file_list_path['mask']))
+        if raw_height != mask_height:
+            raise ValueError(("raw_height = %i != %i = mask_height of "
+                              "raw(%s) and mask(%s)") %
+                             (raw_height, mask_height,
+                              json_file_list_path['raw'],
+                              json_file_list_path['mask']))
+
+    return data
