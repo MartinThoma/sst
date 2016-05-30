@@ -40,11 +40,11 @@ def generate_nnet(feats):
                 ],
         # layer parameters:
         input_shape=input_shape,
-        hidden_num_filters=32,
+        hidden_num_filters=10,
         hidden_filter_size=(5, 5),
         hidden_pad='same',
-        hidden2_num_filters=32,
-        hidden2_filter_size=(3, 3),
+        hidden2_num_filters=10,
+        hidden2_filter_size=(5, 5),
         hidden2_pad='same',
         pool_pool_size=(2, 2),
         output_nonlinearity=lasagne.nonlinearities.softmax,
@@ -55,6 +55,6 @@ def generate_nnet(feats):
         update_learning_rate=0.01,
         update_momentum=0.9,
 
-        max_epochs=100,
+        max_epochs=1,
         verbose=1,)
     return net1
