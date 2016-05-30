@@ -52,7 +52,7 @@ def index():
 
 @app.route('/work', methods=['POST', 'GET'])
 def work():
-    """a worker task"""
+    """A worker task."""
     global nn
     if request.method == 'GET':
         out_filename = os.path.join(resource_filename('sst', 'static/'),
@@ -82,6 +82,15 @@ def work():
         logging.info("output_path: %s", output_path)
         logging.info("Overlay path: %s", overlay_path)
         t2 = time.time()
+
+        # Get image files
+        image_paths = []
+        if 'DATA' in os.environ:
+            for path, subdirs, files in os.walk(os.environ['DATA']):
+                for name in files:
+                    if name.endswith('.png'):
+                        image_paths.append(os.path.join(path, name))
+
         return render_template('canvas.html',
                                execution_time=t1 - t0,
                                overlay_time=t2 - t1,
@@ -91,8 +100,9 @@ def work():
                                output_path=url_for('static',
                                                    filename=os.path.basename(output_path)),
                                output_overlay_path=url_for('static',
-                                                   filename=os.path.basename(utils.get_overlay_name(output_path))),
-                               hard_classification=hard_classification)
+                                                           filename=os.path.basename(utils.get_overlay_name(output_path))),
+                               hard_classification=hard_classification,
+                               image_paths=[])
     else:
         return "Request method: %s" % request.method
 

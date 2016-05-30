@@ -24,9 +24,9 @@
                value="{{photo_path}}"
                list="paths" />
         <datalist id="paths">
-            <option value="/home/moose/Desktop/sststuff/DATA/data_road/roadC621/OP4/Raw/img_01_raw.png">
-            <option value="/home/moose/Desktop/sststuff/DATA/data_road/roadC621/OP4/Raw/img_02_raw.png">
-            <option value="/home/moose/Desktop/sststuff/DATA/data_road/roadC621/OP4/Raw/img_03_raw.png">
+            {% for imgpath in image_paths %}
+                <option value="{{imgpath}}">
+            {% endfor %}>
         </datalist>
       </div>
       <div class="form-group">
