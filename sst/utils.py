@@ -311,3 +311,25 @@ def get_labeled_filelist(json_file_list_path):
                               json_file_list_path['mask']))
 
     return data
+
+
+def load_hypes(hypes_file):
+    """Load the dictionary of the JSON hypes_file."""
+    if not os.path.isfile(hypes_file):
+        logging.warning("No hypes file found at '%s'.",
+                        hypes_file)
+    else:
+        hypes = None
+        with open(hypes_file) as data_file:
+            hypes = json.load(data_file)
+            base = os.path.dirname(hypes_file)
+            hypes['data']['train'] = os.path.join(base, hypes['data']['train'])
+            hypes['data']['train'] = os.path.abspath(hypes['data']['train'])
+            hypes['data']['test'] = os.path.join(base, hypes['data']['test'])
+            hypes['data']['test'] = os.path.abspath(hypes['data']['test'])
+            tmp = os.path.join(base, hypes['segmenter']['network_path'])
+            hypes['segmenter']['network_path'] = os.path.abspath(tmp)
+            tmp = os.path.join(base,
+                               hypes['segmenter']['serialized_model_path'])
+            hypes['segmenter']['serialized_model_path'] = os.path.abspath(tmp)
+        return hypes

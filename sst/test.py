@@ -5,7 +5,7 @@
 
 import logging
 import sys
-import json
+import os
 
 logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
                     level=logging.INFO,
@@ -19,11 +19,12 @@ from . import view
 
 def main(hypes_file):
     """Evaluate a trained model."""
-    with open(hypes_file) as data_file:
-        hypes = json.load(data_file)
+    hypes = utils.load_hypes(hypes_file)
     test_images_json = hypes['data']['test']
     stride = hypes['segmenter']['stride']
     model_path_trained = hypes['segmenter']['serialized_model_path']
+    if not os.path.isfile(model_path_trained):
+        logging.warning("No model found at '%s'.", model_path_trained)
     trained, paramters = utils.deserialize_model(model_path_trained)
     view.main(model_path_trained, verbose=False)
     eval_image.eval_pickle(trained, paramters, test_images_json, stride=stride)

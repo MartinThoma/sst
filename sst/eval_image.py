@@ -22,8 +22,7 @@ from . import utils
 def main(hypes_file, image_path, output_path, stride,
          hard_classification=True):
     """Evaluate a model."""
-    with open(hypes_file) as data_file:
-        hypes = json.load(data_file)
+    hypes = utils.load_hypes(hypes_file)
     with Timer() as t:
         model_pickle = hypes['segmenter']['serialized_model_path']
         nn, nn_params = utils.deserialize_model(model_pickle)
