@@ -64,3 +64,6 @@ target/
 cover/
 .coverage
 *.sublime-*
+testfiles.json
+trainfiles.json
+examples/KITTI-Road/data_road
