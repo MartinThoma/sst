@@ -8,8 +8,10 @@
    and a file `testfiles.json`. Both files should contain a list of entries
    `{'raw': [some path], 'mask': [some path]} which maps raw images to
    segmentation masks.
-6. Execute `cd ..`
-7. Execute `sst train --hypes fully_simple_road.json`
+6. Execute `cd training/image_2; for i in *.png; do convert $i -resize 621x188! $i; done; cd -`
+7. Execute `cd training/gt_image_2; for i in *.png; do convert $i -resize 621x188! -sample $i; done; cd -`
+8. Execute `cd ..`
+9. Execute `sst train --hypes fully_simple_road.json`
 
 
 ## Details
@@ -18,4 +20,4 @@ Step 7 will first read the data and create a pickled version of it for
 training. If you don't change the features (e.g. patch size), you will not have
 to do this step multiple times.
 
-2016-06-12 19:33:43,096 INFO
+2016-06-12 19:33:43,096 INFOcd training/gt_image_2; for i in *.png; do convert $i -resize 621x188! $i; done; cd -
