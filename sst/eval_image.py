@@ -5,6 +5,7 @@
 import logging
 import sys
 import time
+import os
 
 import scipy
 import numpy as np
@@ -63,6 +64,11 @@ def eval_net(trained,
         If True, the image will only show either street or no street.
         If False, the image will show probabilities.
     verbose : bool
+
+    Returns
+    -------
+    numpy array
+        Segmented image
     """
     patch_size = nn_params['patch_size']
     fully = nn_params['fully']
@@ -207,7 +213,7 @@ def eval_net(trained,
         return result
 
 
-def eval_pickle(trained, nn_params, images_json_path, stride=1):
+def eval_pickle(trained, nn_params, images_json_path, out_path, stride=1):
     """
     Eval a model.
 
@@ -219,6 +225,8 @@ def eval_pickle(trained, nn_params, images_json_path, stride=1):
         nn_params relevant for the model (e.g. patch size)
     images_json_path : str
         Path to a JSON file
+    out_path : str
+    stride : int
     """
     train_filelist = utils.get_labeled_filelist(images_json_path)
     list_tuples = [(el['raw'], el['mask']) for el in train_filelist]
@@ -236,11 +244,16 @@ def eval_pickle(trained, nn_params, images_json_path, stride=1):
                      i + 1,
                      len(list_tuples),
                      total_results)
-        result = eval_net(trained,
-                          photo_path=data_image_path,
-                          nn_params=nn_params,
-                          stride=stride)
-        tmp = get_error_matrix(result, gt_image_path)
+        segmentation = eval_net(trained,
+                                photo_path=data_image_path,
+                                nn_params=nn_params,
+                                stride=stride)
+        seg_path = os.path.join(out_path, "seg-%i.png" % i)
+        overlay_path = os.path.join(out_path, "overlay-%i.png" % i)
+        scipy.misc.imsave(seg_path, segmentation)
+        utils.overlay_images(data_image_path, segmentation, overlay_path,
+                             hard_classification=True)
+        tmp = get_error_matrix(segmentation, gt_image_path)
         for key, val in tmp.items():
             total_results[key] += val
     print(total_results)

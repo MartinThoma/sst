@@ -118,6 +118,7 @@ def overlay_images(original_image,
     ----------
     original_image : string
         Path to an image file
+    overlay : numpy array
     segmentation_image : string
         Path to the an image file of the same size as original_image
     hard_classification : bool
