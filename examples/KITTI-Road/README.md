@@ -12,6 +12,7 @@
 7. Execute `cd training/gt_image_2; for i in *.png; do convert $i -resize 621x188! -sample $i; done; cd -`
 8. Execute `cd ..`
 9. Execute `sst train --hypes fully_simple_road.json`
+10. Execute `sst test --hypes fully_simple_road.json --out out`
 
 
 ## Details
