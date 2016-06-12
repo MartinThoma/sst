@@ -52,10 +52,11 @@ def main(hypes_file):
     assert image_batch_size >= 1
     stride = hypes['training']['stride']
     assert stride >= 1
-    features, labels = load_data_raw_images(images_json_path=train_images_json)
+    features, labels = load_data_raw_images(hypes,
+                                            images_json_path=train_images_json)
     logging.info("len(features)=%i", len(features))
-    logging.info("features.shape=%s", features.shape)
-    logging.info("features.shape=%s", labels.shape)
+    logging.info("features.shape=%s", features[0].shape)
+    logging.info("labels.shape=%s", labels[0].shape)
     assert len(features) > 0
     mem_size = (sys.getsizeof(42) * len(features) * features[0].size +
                 sys.getsizeof(42) * len(labels) * labels[0].size)
@@ -115,7 +116,8 @@ def main(hypes_file):
                           parameters=nn_params)
 
 
-def load_data_raw_images(serialization_path='data.pickle',
+def load_data_raw_images(hypes,
+                         serialization_path='data.pickle',
                          images_json_path='data.json'):
     """
     Load color images (3 channels) and labels (as images).
@@ -147,16 +149,37 @@ def load_data_raw_images(serialization_path='data.pickle',
         print('')
         xs_colored = np.array(colored_image_features, copy=False)
 
+        logging.info("Get dictionary to translate colors to classes...")
+        col_to_class = {}
+        default_class = 0
+        for i, cl in enumerate(hypes['classes']):
+            for color in cl['colors']:
+                if color == 'default':
+                    default_class = i
+                else:
+                    if isinstance(color, list):
+                        color = tuple(color)
+                    col_to_class[color] = i
+
         # read grayscale groundtruth
+        logging.info("Read groundtruth...")
+        defaulted_colors = set()
         yl = []
         for f in files_gt:
             img = scipy.misc.imread(f)
-            new_img = np.zeros(img.shape)
+            new_img = np.zeros((img.shape[0], img.shape[1]), dtype=int)
             for i, row in enumerate(img):
                 for j, pixel in enumerate(row):
-                    new_img[i][j] = (pixel != 0)  # Binary class
+                    pixel = tuple(pixel)
+                    if pixel in col_to_class:
+                        new_img[i][j] = col_to_class[pixel]
+                    else:
+                        defaulted_colors.add(pixel)
+                        new_img[i][j] = default_class
+            print("    %s" % f)
             yl.append(new_img)
-        yl = np.array(yl, dtype=int)
+        # yl = np.array(yl, dtype=int)  # Images can have different dimensions
+        logging.info("Those colors were defaulted: %s", defaulted_colors)
 
         assert len(xs_colored) == len(yl), "len(xs_colored) != len(yl)"
         for i, (X, y) in enumerate(zip(xs_colored, yl), start=1):
