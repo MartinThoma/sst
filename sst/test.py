@@ -7,14 +7,14 @@ import logging
 import sys
 import os
 
-logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
-                    level=logging.INFO,
-                    stream=sys.stdout)
-
 # Custom modules
 from . import utils
 from . import eval_image
 from . import view
+
+logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
+                    level=logging.INFO,
+                    stream=sys.stdout)
 
 
 def main(hypes_file):
@@ -22,6 +22,7 @@ def main(hypes_file):
     hypes = utils.load_hypes(hypes_file)
     test_images_json = hypes['data']['test']
     stride = hypes['segmenter']['stride']
+    logging.info("Stride: %i", stride)
     model_path_trained = hypes['segmenter']['serialized_model_path']
     if not os.path.isfile(model_path_trained):
         logging.warning("No model found at '%s'.", model_path_trained)

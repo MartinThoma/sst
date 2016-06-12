@@ -5,18 +5,16 @@
 import logging
 import sys
 import time
-import json
-
-
-logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
-                    level=logging.DEBUG,
-                    stream=sys.stdout)
 
 import scipy
 import numpy as np
 
 # sst modules
 from . import utils
+
+logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
+                    level=logging.DEBUG,
+                    stream=sys.stdout)
 
 
 def main(hypes_file, image_path, output_path, stride,
@@ -234,7 +232,10 @@ def eval_pickle(trained, nn_params, images_json_path, stride=1):
                         'fp': 0.0,
                         'fn': 0.0}
     for i, (data_image_path, gt_image_path) in enumerate(list_tuples):
-        logging.info("Processing image: %s of %s", i + 1, len(list_tuples))
+        logging.info("Processing image: %s of %s (%s)",
+                     i + 1,
+                     len(list_tuples),
+                     total_results)
         result = eval_net(trained,
                           photo_path=data_image_path,
                           nn_params=nn_params,
@@ -303,7 +304,8 @@ def get_error_matrix(result, gt_image_path):
 
 
 def scale_output(classify_image, new_shape):
-    """Scale `classify_image` to `new_shape`.
+    """
+    Scale `classify_image` to `new_shape`.
 
     Parameters
     ----------
