@@ -1,6 +1,9 @@
 ## Steps
 
 1. Clone this repostiory and install sst
+    - You have to install nolearn, too:
+      1. `wget wget https://github.com/dnouri/nolearn/archive/f62353a.zip`
+      2. `pip install f62353a.zip --user`
 2. Download the [Download base kit with: left color images, calibration and training labels (0.5 GB)](http://www.cvlibs.net/datasets/kitti/eval_road.php)
 3. Copy the downloaded stuff in the directory `data_road`
 4. cd `examples/KITTI-Road/data_road`
