@@ -1,15 +1,13 @@
+# -*- coding: utf-8 -*-
+
 import logging
-
-
-fully = True
-patch_size = 51
-
 import lasagne.layers
 
 
 class Unpool2DLayer(lasagne.layers.Layer):
     """This layer performs unpooling over the last two dimensions
     of a 4D tensor."""
+
     def __init__(self, incoming, ds, **kwargs):
         super(Unpool2DLayer, self).__init__(incoming, **kwargs)
         if (isinstance(ds, int)):

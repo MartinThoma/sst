@@ -68,12 +68,12 @@ def main(hypes_file):
 
     logging.info("## Network: %s", network_path)
     network = imp.load_source('sst.network', network_path)
-    logging.info("Fully network: %s", str(network.fully))
+    logging.info("Fully network: %s", str(hypes['segmenter']['fully']))
     nn_params['code'] = inspect.getsource(network)
-    nn_params['fully'] = network.fully
-    nn_params['patch_size'] = network.patch_size
-    nn_params['training_stride'] = network.training_stride
-    nn_params['flatten'] = network.flatten
+    nn_params['fully'] = hypes['segmenter']['fully']
+    nn_params['patch_size'] = hypes['segmenter']['patch_size']
+    nn_params['training_stride'] = hypes['training']['stride']
+    nn_params['flatten'] = hypes['segmenter']['flatten']
     assert nn_params['patch_size'] > 0
 
     # get_features is only called so that the network can be properly generated

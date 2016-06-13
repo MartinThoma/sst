@@ -3,11 +3,6 @@
 
 import logging
 
-fully = False
-patch_size = 9
-training_stride = 3
-flatten = False
-
 
 def generate_nnet(feats):
     """Generate a neural network.
@@ -55,6 +50,6 @@ def generate_nnet(feats):
         update_learning_rate=0.01,
         update_momentum=0.9,
 
-        max_epochs=1,
+        max_epochs=10,
         verbose=1,)
     return net1

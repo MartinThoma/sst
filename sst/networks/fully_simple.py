@@ -2,11 +2,6 @@
 
 import logging
 
-fully = True
-patch_size = 51
-training_stride = 20
-flatten = False
-
 
 def generate_nnet(feats):
     """Generate a neural network.

@@ -10,15 +10,15 @@
        "colors": ["default", [255, 0, 0]]}
   ],
   "training": {
-      "stride": 20,
+      "stride": 10,
       "batchsize": 100
   },
   "segmenter": {
-      "serialized_model_path": "fully_simple_road.pickle",
-      "network_path": "../../sst/networks/fully_simple.py",
-      "stride": 10,
+      "serialized_model_path": "sliding_window_road.pickle",
+      "network_path": "../../sst/networks/sliding_window.py",
+      "stride": 1,
       "patch_size": 51,
       "flatten": false,
-      "fully": true
+      "fully": false
   }
 }
