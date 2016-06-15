@@ -28,7 +28,8 @@ def main(hypes_file, out_path):
         logging.warning("No model found at '%s'.", model_path_trained)
     trained, paramters = utils.deserialize_model(model_path_trained)
     view.main(model_path_trained, verbose=False)
-    eval_image.eval_pickle(trained,
+    eval_image.eval_pickle(hypes,
+                           trained,
                            paramters,
                            test_images_json,
                            out_path,

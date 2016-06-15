@@ -104,8 +104,9 @@ def load_image(filename):
     return features
 
 
-def overlay_images(original_image,
-                   overlay,
+def overlay_images(hypes,
+                   original_image,
+                   overlay_arr,
                    output_path,
                    hard_classification=True,):
     """
@@ -116,9 +117,10 @@ def overlay_images(original_image,
 
     Parameters
     ----------
+    hypes : dict
     original_image : string
         Path to an image file
-    overlay : numpy array
+    overlay_arr : numpy array
     segmentation_image : string
         Path to the an image file of the same size as original_image
     hard_classification : bool
@@ -130,11 +132,10 @@ def overlay_images(original_image,
     str : Path of overlay image
     """
     background = Image.open(original_image)
-    overlay = scipy.misc.toimage(overlay)
-    overlay = overlay.convert('RGB')
+    overlay = scipy.misc.toimage(overlay_arr)
+    overlay = overlay.convert('RGBA')
 
     # Replace colors of segmentation to make it easier to see
-    street_color = find_street_color(overlay)
     width, height = overlay.size
     pix = overlay.load()
     pixels_debug = list(overlay.getdata())
@@ -142,27 +143,18 @@ def overlay_images(original_image,
                  len(list(set(pixels_debug))),
                  min(pixels_debug),
                  max(pixels_debug))
+    colors = set()
     for x in range(0, width):
         for y in range(0, height):
             if not hard_classification:
                 overlay.putpixel((x, y), (0, pix[x, y][0], 0))
             else:
-                if pix[x, y] == street_color:
-                    overlay.putpixel((x, y), (0, 255, 0))
-                else:
-                    overlay.putpixel((x, y), (0, 0, 0))
-
+                cl = overlay_arr[y][x]
+                overlay.putpixel((x, y),
+                                 tuple(hypes["classes"][cl]["output"]))
+            colors.add(overlay_arr[y][x])
+    print(colors)
     background = background.convert('RGB')
-    overlay = overlay.convert('RGBA')
-
-    # make black pixels transparent
-    new_data = []
-    for item in overlay.getdata():
-        if item[0] == 0 and item[1] == 0 and item[2] == 0:
-            new_data.append((0, 0, 0, 0))
-        else:
-            new_data.append((item[0], item[1], item[2], int(255 * 0.5)))
-    overlay.putdata(new_data)
     background.paste(overlay, (0, 0), mask=overlay)
     background.save(output_path, 'PNG')
     return output_path
@@ -174,31 +166,6 @@ def get_overlay_name(segmentation_name):
     splitted[-2] = splitted[-2] + '-overlay'
     output_path = '.'.join(splitted)
     return output_path
-
-
-def find_street_color(im):
-    """Find the color which is "street".
-
-    Parameters
-    ----------
-    im : Image object opened in RGB mode
-
-    Returns
-    -------
-    int tuple of length 3
-    """
-    # width, height = im.size
-    # pix = im.load()
-    # colors = {}
-    # for x in range(int(0.25 * width), int(0.75 * width)):
-    #     for y in range(int(0.6 * height), height):
-    #         if pix[x, y] in colors:
-    #             colors[pix[x, y]] += 1
-    #         else:
-    #             colors[pix[x, y]] = 1
-
-    # return max(colors, key=colors.get)
-    return (255, 255, 255)
 
 
 def is_valid_file(parser, arg):
@@ -333,6 +300,11 @@ def load_hypes(hypes_file):
             tmp = os.path.join(base,
                                hypes['segmenter']['serialized_model_path'])
             hypes['segmenter']['serialized_model_path'] = os.path.abspath(tmp)
+            for i in range(len(hypes['classes'])):
+                for j in range(len(hypes['classes'][i]['colors'])):
+                    color = hypes['classes'][i]['colors'][j]
+                    if color != "default":
+                        hypes['classes'][i]['colors'][j] = tuple(color)
         return hypes
 
 

@@ -9,6 +9,7 @@ import os
 
 import scipy
 import numpy as np
+import PIL
 
 # sst modules
 from . import utils
@@ -38,7 +39,8 @@ def main(hypes_file, image_path, output_path, stride,
                           hard_classification=hard_classification)
     logging.info("=> elasped evaluating model: %s s", t.secs)
     scipy.misc.imsave(output_path, result)
-    utils.overlay_images(image_path, result, output_path,
+    utils.overlay_images(hypes,
+                         image_path, result, output_path,
                          hard_classification=hard_classification)
 
 
@@ -201,24 +203,27 @@ def eval_net(trained,
         if hard_classification:
             result2 = np.round((result2 - np.amin(result2)) /
                                (np.amax(result2) - np.amin(result2)))
-
-        result2 = result2 * 255
-
         return result2
     else:
-        result = result.reshape((new_height, new_width)) * 255
+        result = result.reshape((new_height, new_width))
 
         # Scale image to correct size
         result = scale_output(result, orig_dimensions)
         return result
 
 
-def eval_pickle(trained, nn_params, images_json_path, out_path, stride=1):
+def eval_pickle(hypes,
+                trained,
+                nn_params,
+                images_json_path,
+                out_path,
+                stride=1):
     """
     Eval a model.
 
     Parameters
     ----------
+    hypes : dict
     trained : theano expression
         A trained neural network
     nn_params : dict
@@ -231,14 +236,12 @@ def eval_pickle(trained, nn_params, images_json_path, out_path, stride=1):
     train_filelist = utils.get_labeled_filelist(images_json_path)
     list_tuples = [(el['raw'], el['mask']) for el in train_filelist]
 
-    total_results = {'tp': 0,
-                     'tn': 0,
-                     'fp': 0,
-                     'fn': 0}
-    relative_results = {'tp': 0.0,
-                        'tn': 0.0,
-                        'fp': 0.0,
-                        'fn': 0.0}
+    total_results = {}
+    elements = [0, 1]
+    for i in elements:
+        total_results[i] = {}
+        for j in elements:
+            total_results[i][j] = 0
     for i, (data_image_path, gt_image_path) in enumerate(list_tuples):
         logging.info("Processing image: %s of %s (%s)",
                      i + 1,
@@ -250,35 +253,19 @@ def eval_pickle(trained, nn_params, images_json_path, out_path, stride=1):
                                 stride=stride)
         seg_path = os.path.join(out_path, "seg-%i.png" % i)
         overlay_path = os.path.join(out_path, "overlay-%i.png" % i)
-        scipy.misc.imsave(seg_path, segmentation)
-        utils.overlay_images(data_image_path, segmentation, overlay_path,
+        scipy.misc.imsave(seg_path, segmentation * 255)
+        utils.overlay_images(hypes,
+                             data_image_path, segmentation, overlay_path,
                              hard_classification=True)
-        tmp = get_error_matrix(segmentation, gt_image_path)
-        for key, val in tmp.items():
-            total_results[key] += val
-    print(total_results)
-    relative_results['tp'] = (float(total_results['tp']) /
-                              (total_results['tp'] + total_results['fn']))
-    relative_results['fn'] = (float(total_results['fn']) /
-                              (total_results['tp'] + total_results['fn']))
-    relative_results['fp'] = (float(total_results['fp']) /
-                              (total_results['fp'] + total_results['tn']))
-    relative_results['tn'] = (float(total_results['tn']) /
-                              (total_results['fp'] + total_results['tn']))
+        conf = get_error_matrix(hypes, segmentation, gt_image_path)
+        total_results = merge_cms(total_results, conf)
+
     logging.info("Eval results: %s", total_results)
-    logging.info("Eval results relativ: %s", relative_results)
-    logging.info("Positive Examples: %s ", total_results['tp'] +
-                 total_results['fn'])
-    logging.info("Negative Examples: %s ", total_results['fp'] +
-                 total_results['tn'])
-    logging.info("Accurity: %s ", float((total_results['tp'] +
-                                        total_results['tn'])) /
-                 (total_results['tp'] + total_results['fn'] +
-                  total_results['fp'] + total_results['tn']))
+    logging.info("Accurity: %s ", get_accuracy(total_results))
     logging.info("%i images evaluated.", len(list_tuples))
 
 
-def get_error_matrix(result, gt_image_path):
+def get_error_matrix(hypes, result, gt_image_path):
     """
     Get true positive, false positive, true negative, false negative.
 
@@ -293,27 +280,23 @@ def get_error_matrix(result, gt_image_path):
     dict
         with keys tp, tn, fp, fn
     """
-    total_results = {'tp': 0,
-                     'tn': 0,
-                     'fp': 0,
-                     'fn': 0}
     img = scipy.misc.imread(gt_image_path)
-    new_img = np.zeros(img.shape)
+    gt = np.zeros(result.shape)
+    conf_dict = {}
+    default = 0
+    for i, cl in enumerate(hypes["classes"]):
+        for color in cl:
+            conf_dict[color] = i
+            if color == "default":
+                default = i
     for i, row in enumerate(img):
         for j, pixel in enumerate(row):
-            new_img[i][j] = (pixel != 0)
-    for gt, predict in zip(new_img.flatten(), result.flatten()):
-        if gt == 0:
-            if predict == 0:
-                total_results['tn'] += 1
+            pixel = tuple(pixel)
+            if pixel in conf_dict:
+                gt[i][j] = conf_dict[pixel]
             else:
-                total_results['fp'] += 1
-        else:
-            if predict == 0:
-                total_results['fn'] += 1
-            else:
-                total_results['tp'] += 1
-    return total_results
+                gt[i][j] = default
+    return get_confusion_matrix(gt, result)
 
 
 def scale_output(classify_image, new_shape):
@@ -329,7 +312,12 @@ def scale_output(classify_image, new_shape):
     -------
     numpy array
     """
-    return scipy.misc.imresize(classify_image, new_shape, interp='nearest')
+    im = scipy.misc.toimage(classify_image,
+                            low=np.amin(classify_image),
+                            high=np.amax(classify_image))
+    im = im.resize((new_shape[1], new_shape[0]),
+                   resample=PIL.Image.NEAREST)
+    return scipy.misc.fromimage(im)
 
 
 def get_parser():
@@ -386,6 +374,122 @@ class Timer(object):
         self.msecs = self.secs * 1000  # millisecs
         if self.verbose:
             print('elapsed time: %f ms' % self.msecs)
+
+
+def get_accuracy(n):
+    r"""
+    Get the accuracy from a confusion matrix n.
+
+    The mean accuracy is calculated as
+    .. math::
+        t_i &= \sum_{j=1}^k n_{ij}\\
+        acc(n) &= \frac{\sum_{i=1}^k n_{ii}}{\sum_{i=1}^k n_{ii}}
+    Parameters
+    ----------
+    n : dict
+        Confusion matrix which has integer keys 0, ..., nb_classes - 1;
+        an entry n[i][j] is the count how often class i was classified as
+        class j.
+    Returns
+    -------
+    float
+        accuracy (in [0, 1])
+    References
+    ----------
+    .. [1] Martin Thoma (2016): A Survey of Semantic Segmentation,
+       http://arxiv.org/abs/1602.06541
+    Examples
+    --------
+    >>> n = {0: {0: 10, 1: 2}, 1: {0: 5, 1: 83}}
+    >>> get_accuracy(n)
+    0.93
+    """
+    return (float(n[0][0] + n[1][1]) /
+            (n[0][0] + n[1][1] + n[0][1] + n[1][0]))
+
+
+def merge_cms(cm1, cm2):
+    """
+    Merge two confusion matrices.
+
+    Parameters
+    ----------
+    cm1 : dict
+        Confusion matrix which has integer keys 0, ..., nb_classes - 1;
+        an entry cm1[i][j] is the count how often class i was classified as
+        class j.
+    cm2 : dict
+        Another confusion matrix.
+    Returns
+    -------
+    dict
+        merged confusion matrix
+    Examples
+    --------
+    >>> cm1 = {0: {0: 1, 1: 2}, 1: {0: 3, 1: 4}}
+    >>> cm2 = {0: {0: 5, 1: 6}, 1: {0: 7, 1: 8}}
+    >>> merge_cms(cm1, cm2)
+    {0: {0: 6, 1: 8}, 1: {0: 10, 1: 12}}
+    """
+    assert 0 in cm1
+    assert len(cm1[0]) == len(cm2[0])
+
+    cm = {}
+    k = len(cm1[0])
+    for i in range(k):
+        cm[i] = {}
+        for j in range(k):
+            cm[i][j] = cm1[i][j] + cm2[i][j]
+
+    return cm
+
+
+def get_confusion_matrix(correct_seg, segmentation, elements=None):
+    """
+    Get the confuscation matrix of a segmentation image and its ground truth.
+
+    The confuscation matrix is a detailed count of which classes i were
+    classifed as classes j, where i and j take all (elements) names.
+    Parameters
+    ----------
+    correct_seg : numpy array
+        Representing the ground truth.
+    segmentation : numpy array
+        Predicted segmentation
+    elements : iterable
+        A list / set or another iterable which contains the possible
+        segmentation classes (commonly 0 and 1).
+    Returns
+    -------
+    dict
+        A confusion matrix m[correct][classified] = number of pixels in this
+        category.
+    """
+    assert len(correct_seg.shape) == 2, \
+        "len(correct_seg.shape) = %i" % len(correct_seg.shape)
+    assert correct_seg.shape == segmentation.shape, \
+        "correct_seg = %s != %s = segmentation" % (correct_seg.shape,
+                                                   segmentation.shape)
+    height, width = correct_seg.shape
+
+    # Get classes
+    if elements is None:
+        elements = set(np.unique(correct_seg))
+        elements = elements.union(set(np.unique(segmentation)))
+        logging.debug("elements parameter not given to get_confusion_matrix")
+        logging.debug("  assume '%s'", elements)
+
+    # Initialize confusion matrix
+    confusion_matrix = {}
+    for i in elements:
+        confusion_matrix[i] = {}
+        for j in elements:
+            confusion_matrix[i][j] = 0
+
+    for x in range(width):
+        for y in range(height):
+            confusion_matrix[correct_seg[y][x]][segmentation[y][x]] += 1
+    return confusion_matrix
 
 
 if __name__ == '__main__':

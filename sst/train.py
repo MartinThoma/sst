@@ -273,7 +273,7 @@ def get_patches(xs, ys, nn_params, stride=49):
                           :]
                 if x_new.shape != (patch_size, patch_size, 3):
                     # Patch was at the right / bottom border
-                    continue
+                    continue  # TODO: How often does that happen?
                 if fully:
                     # Get Labels of the patch and flatt it to 1D
                     # x1 = patch_center_x - px_left_patchcenter
