@@ -334,3 +334,16 @@ def load_hypes(hypes_file):
                                hypes['segmenter']['serialized_model_path'])
             hypes['segmenter']['serialized_model_path'] = os.path.abspath(tmp)
         return hypes
+
+
+def count_classes(labels):
+    """Count how often the classes appear."""
+    class_dict = {}
+    for image in labels:
+        for row in image:
+            for label in row:
+                if label not in class_dict:
+                    class_dict[label] = 1
+                else:
+                    class_dict[label] += 1
+    return class_dict

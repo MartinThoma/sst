@@ -71,3 +71,4 @@ examples/KITTI-Road/data_road
 data.pickle.npz
 out/
 *.pickle
+*.npz

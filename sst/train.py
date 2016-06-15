@@ -20,6 +20,7 @@ import logging
 
 import scipy
 import numpy as np
+import matplotlib.pyplot as plt
 
 from . import utils
 
@@ -53,6 +54,7 @@ def main(hypes_file):
     stride = hypes['training']['stride']
     assert stride >= 1
     features, labels = load_data_raw_images(hypes,
+                                            serialization_path=hypes['data']['serialization'],
                                             images_json_path=train_images_json)
     logging.info("len(features)=%i", len(features))
     logging.info("features.shape=%s", features[0].shape)
@@ -63,6 +65,24 @@ def main(hypes_file):
     logging.info("Loaded %i data images with their labels (approx %s)",
                  len(features),
                  utils.sizeof_fmt(mem_size))
+    class_dict = utils.count_classes(labels)
+    logging.info("Classes (abs): %s", class_dict)
+    class_dict_rel = {}
+    total = sum(count for _, count in class_dict.items())
+    for item, count in class_dict.items():
+        class_dict_rel[item] = float(count) / total
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(2, 2, 1)
+    ax2 = fig.add_subplot(2, 2, 2)
+    ax3 = fig.add_subplot(2, 2, 3)
+    ax1.imshow(scipy.misc.toimage(features[0]))
+    ax2.imshow(scipy.misc.toimage(labels[0]))
+    ax3.imshow(scipy.misc.toimage(features[0]))
+    ax3.imshow(labels[0], cmap='jet', alpha=0.5)
+    plt.show()
+
+    logging.info("Classes (rel): %s", class_dict_rel)
     nn_params = {'training': {'image_batch_size': image_batch_size,
                               'stride': stride}}
 
