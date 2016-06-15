@@ -166,7 +166,7 @@ def load_data_raw_images(hypes,
         defaulted_colors = set()
         yl = []
         for f in files_gt:
-            img = scipy.misc.imread(f)
+            img = scipy.misc.imread(f, mode='RGB')
             new_img = np.zeros((img.shape[0], img.shape[1]), dtype=int)
             for i, row in enumerate(img):
                 for j, pixel in enumerate(row):
