@@ -22,7 +22,7 @@
       "serialized_model_path": "fully_simple_road.pickle",
       "network_path": "../../sst/networks/fully_simple.py",
       "stride": 10,
-      "patch_size": 51,
+      "patch_size": 19,
       "flatten": false,
       "fully": true
   }

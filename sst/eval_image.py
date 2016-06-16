@@ -280,7 +280,7 @@ def get_error_matrix(hypes, result, gt_image_path):
     dict
         with keys tp, tn, fp, fn
     """
-    img = scipy.misc.imread(gt_image_path)
+    img = scipy.misc.imread(gt_image_path, mode='RGB')
 
     conf_dict = {}  # map colors to classes
     default = 0

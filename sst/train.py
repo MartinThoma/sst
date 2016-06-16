@@ -51,8 +51,7 @@ def main(hypes_file):
     train_images_json = hypes['data']['train']
     image_batch_size = hypes['training']['batchsize']
     assert image_batch_size >= 1
-    stride = hypes['training']['stride']
-    assert stride >= 1
+    assert hypes['training']['stride'] >= 1
     features, labels = load_data_raw_images(hypes,
                                             serialization_path=hypes['data']['serialization'],
                                             images_json_path=train_images_json)
@@ -84,7 +83,7 @@ def main(hypes_file):
 
     logging.info("Classes (rel): %s", class_dict_rel)
     nn_params = {'training': {'image_batch_size': image_batch_size,
-                              'stride': stride}}
+                              'stride': hypes['training']['stride']}}
 
     logging.info("## Network: %s", network_path)
     network = imp.load_source('sst.network', network_path)
@@ -106,9 +105,8 @@ def main(hypes_file):
     net1 = network.generate_nnet(feats)
 
     # Generate training data and run training
-    for block in range(0, len(features), image_batch_size):
-        from_img = block
-        to_img = block + image_batch_size
+    for from_img in range(0, len(features), image_batch_size):
+        to_img = from_img + image_batch_size
         logging.info("Training on batch %i - %i of %i total",
                      from_img,
                      to_img,
@@ -116,7 +114,7 @@ def main(hypes_file):
         labeled_patches = get_patches(features[from_img:to_img],
                                       labels[from_img:to_img],
                                       nn_params=nn_params,
-                                      stride=stride)
+                                      stride=hypes['training']['stride'])
         if nn_params['flatten']:
             new_l = []
             for el in labeled_patches[0]:
@@ -273,7 +271,8 @@ def get_patches(xs, ys, nn_params, stride=49):
                           :]
                 if x_new.shape != (patch_size, patch_size, 3):
                     # Patch was at the right / bottom border
-                    continue  # TODO: How often does that happen?
+                    print("Skip patch of shape %s" % str(x_new.shape))
+                    continue
                 if fully:
                     # Get Labels of the patch and flatt it to 1D
                     # x1 = patch_center_x - px_left_patchcenter
@@ -291,10 +290,10 @@ def get_patches(xs, ys, nn_params, stride=49):
                     patches.append(x_new)
     assert len(patches) == len(labels), "len(patches) != len(labels)"
     logging.info("%i patches were generated.", len(patches))
-    # logging.info("Data before: %i", len(labels))
+    logging.info("Data before make_equal: %i", len(labels))
     # patches, labels = utils.make_equal(patches, labels)
     # logging.info(labels.shape)
-    # logging.info("Data after: %i", len(labels))
+    logging.info("Data after make_equal: %i", len(labels))
     if fully:
         return (np.array(patches, dtype=np.float32),
                 np.array(labels, dtype=np.float32))  # fully needs float labels
