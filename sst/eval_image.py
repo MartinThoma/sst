@@ -281,20 +281,24 @@ def get_error_matrix(hypes, result, gt_image_path):
         with keys tp, tn, fp, fn
     """
     img = scipy.misc.imread(gt_image_path)
-    gt = np.zeros(result.shape)
-    conf_dict = {}
+
+    conf_dict = {}  # map colors to classes
     default = 0
     for i, cl in enumerate(hypes["classes"]):
-        for color in cl:
+        for color in cl["colors"]:
             conf_dict[color] = i
             if color == "default":
                 default = i
+
+    # Create gt image which is a matrix of classes
+    gt = np.zeros(result.shape)
     for i, row in enumerate(img):
         for j, pixel in enumerate(row):
             pixel = tuple(pixel)
             if pixel in conf_dict:
                 gt[i][j] = conf_dict[pixel]
             else:
+                logging.debug("Didn't find %s", str(pixel))
                 gt[i][j] = default
     return get_confusion_matrix(gt, result)
 
