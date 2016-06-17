@@ -86,12 +86,12 @@ def main(args):
     elif args.cmd == 'train':
         train.main(hypes_file=args.hypes_file)
     elif args.cmd == 'serve':
-        serve.main(args.port, args.model_path_trained)
+        serve.main(args.hypes_file, args.port)
     elif args.cmd == 'view':
-        view.main(args.model_path)
+        view.main(args.hypes_file)
     elif args.cmd == 'video':
-        video.main(args.model_path_trained,
-                   args.photo_folder,
+        video.main(args.hypes_file,
+                   args.images,
                    args.video_dir,
                    args.stride)
     else:

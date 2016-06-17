@@ -39,7 +39,7 @@ app = Flask(__name__,
 Bootstrap(app)
 app.config.from_object(__name__)
 nn = None
-nn_params = None
+hypes = None
 
 
 @app.route('/', methods=['POST', 'GET'])
@@ -60,7 +60,7 @@ def work():
 
         photo_path = request.args.get('photo_path',
                                       utils.get_default_data_image_path())
-        patch_size = nn_params['patch_size']
+        patch_size = hypes['segmenter']['patch_size']
         hard_classification = request.args.get('hard_classification',
                                                '0') == '1'
         output_path = request.args.get('output_path', out_filename)
@@ -68,10 +68,10 @@ def work():
         logging.info("photo_path: %s", photo_path)
         t0 = time.time()
         logging.info('photo_path: %s', photo_path)
-        logging.info('parameters: %s', nn_params)
-        result = eval_net(trained=nn,
+        logging.info('parameters: %s', hypes)
+        result = eval_net(hypes=hypes,
+                          trained=nn,
                           photo_path=photo_path,
-                          nn_params=nn_params,
                           stride=stride,
                           hard_classification=hard_classification)
         scipy.misc.imsave(output_path, result)
@@ -112,25 +112,28 @@ def get_parser():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     parser = ArgumentParser(description=__doc__,
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-m', '--model',
-                        dest='model_path_trained',
-                        help='path to the trained .caffe model file',
-                        default=utils.get_model_path(),
-                        metavar='MODEL')
+    parser.add_argument("--hypes",
+                        dest="hypes_file",
+                        type=str,
+                        required=True,
+                        help=("path to a JSON file with "
+                              "contains 'data' (with 'train' and 'test') as "
+                              "well as 'classes' (with 'colors' for each)"))
     parser.add_argument("--port",
                         dest="port", default=5000, type=int,
                         help="where should the webserver run")
     return parser
 
 
-def main(port, model_path_trained):
+def main(hypes_file, port):
     """Main function starting the webserver."""
-    global nn, nn_params
+    global nn, hypes
+    hypes = utils.load_hypes(hypes_file)
     if nn is None:
-        nn, nn_params = utils.deserialize_model(model_path_trained)
+        nn = utils.deserialize_model(hypes)
     logging.info("Start webserver...")
     app.run(port=port)
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
-    main(args.port, args.model_path_trained)
+    main(args.hypes_file, args.port)

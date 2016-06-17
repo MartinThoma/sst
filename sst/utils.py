@@ -13,6 +13,7 @@ import scipy.misc
 import sys
 import pkg_resources
 import json
+import imp
 
 
 def make_equal(features, ys):
@@ -45,7 +46,7 @@ def make_equal(features, ys):
     return (np.array(X_new), np.array(y_new))
 
 
-def serialize_model(model, filename, parameters=None):
+def serialize_model(model, filename):
     """Save a model.
 
     Parameters
@@ -57,13 +58,11 @@ def serialize_model(model, filename, parameters=None):
         values which are relevant for the model, e.g. patch size
     """
     logging.info("Start serializing...")
-    to_pickle = {'model': model,
-                 'parameters': parameters}
     with open(filename, 'wb') as handle:
-        pickle.dump(to_pickle, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(model, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def deserialize_model(filename):
+def deserialize_model_pickle(filename):
     """Deserialize a model from a file to a Theano expression.
 
     Parameters
@@ -73,13 +72,35 @@ def deserialize_model(filename):
 
     Returns
     -------
-    A tuple (theano expression / nolearn model, dict of parameters)
+    object
+        A model
     """
     from sst import shape
     sys.modules['shape'] = shape
     with open(filename, 'rb') as handle:
         to_pickle = pickle.load(handle)
-    return to_pickle['model'], to_pickle['parameters']
+    return to_pickle
+
+
+def deserialize_model(hypes):
+    """Deserialize a model from a file.
+
+    Parameters
+    ----------
+    hypes : dict
+
+    Returns
+    -------
+    object
+        A model
+    """
+    model_path_trained = hypes['segmenter']['serialized_model_path']
+    if not os.path.isfile(model_path_trained):
+        logging.warning("No model found at '%s'.", model_path_trained)
+    network_path = hypes['segmenter']['network_path']
+    network = imp.load_source('sst.network', network_path)
+    trained = network.load_model(hypes)
+    return trained
 
 
 def load_image_patch(filename):
@@ -153,7 +174,7 @@ def overlay_images(hypes,
                 overlay.putpixel((x, y),
                                  tuple(hypes["classes"][cl]["output"]))
             colors.add(overlay_arr[y][x])
-    print(colors)
+    logging.info("Colors: %s", str(colors))
     background = background.convert('RGB')
     background.paste(overlay, (0, 0), mask=overlay)
     background.save(output_path, 'PNG')
@@ -290,21 +311,24 @@ def load_hypes(hypes_file):
         hypes = None
         with open(hypes_file) as data_file:
             hypes = json.load(data_file)
-            base = os.path.dirname(hypes_file)
-            hypes['data']['train'] = os.path.join(base, hypes['data']['train'])
-            hypes['data']['train'] = os.path.abspath(hypes['data']['train'])
-            hypes['data']['test'] = os.path.join(base, hypes['data']['test'])
-            hypes['data']['test'] = os.path.abspath(hypes['data']['test'])
-            tmp = os.path.join(base, hypes['segmenter']['network_path'])
-            hypes['segmenter']['network_path'] = os.path.abspath(tmp)
-            tmp = os.path.join(base,
-                               hypes['segmenter']['serialized_model_path'])
-            hypes['segmenter']['serialized_model_path'] = os.path.abspath(tmp)
-            for i in range(len(hypes['classes'])):
-                for j in range(len(hypes['classes'][i]['colors'])):
-                    color = hypes['classes'][i]['colors'][j]
-                    if color != "default":
-                        hypes['classes'][i]['colors'][j] = tuple(color)
+        base = os.path.dirname(hypes_file)
+        if "one_hot_encoding" not in hypes["training"]:
+            hypes["training"]["one_hot_encoding"] = False
+        hypes['data']['train'] = os.path.join(base, hypes['data']['train'])
+        hypes['data']['train'] = os.path.abspath(hypes['data']['train'])
+        hypes['data']['test'] = os.path.join(base, hypes['data']['test'])
+        hypes['data']['test'] = os.path.abspath(hypes['data']['test'])
+        tmp = os.path.join(base, hypes['segmenter']['network_path'])
+        hypes['segmenter']['network_path'] = os.path.abspath(tmp)
+        tmp = os.path.join(base,
+                           hypes['segmenter']['serialized_model_path'])
+        hypes['segmenter']['serialized_model_path'] = os.path.abspath(tmp)
+        for i in range(len(hypes['classes'])):
+            for j in range(len(hypes['classes'][i]['colors'])):
+                color = hypes['classes'][i]['colors'][j]
+                if color != "default":
+                    hypes['classes'][i]['colors'][j] = tuple(color)
+        assert hypes['segmenter']['patch_size'] > 0
         return hypes
 
 

@@ -23,14 +23,10 @@ def main(hypes_file, out_path):
     test_images_json = hypes['data']['test']
     stride = hypes['segmenter']['stride']
     logging.info("Stride: %i", stride)
-    model_path_trained = hypes['segmenter']['serialized_model_path']
-    if not os.path.isfile(model_path_trained):
-        logging.warning("No model found at '%s'.", model_path_trained)
-    trained, paramters = utils.deserialize_model(model_path_trained)
-    view.main(model_path_trained, verbose=False)
+    trained = utils.deserialize_model(hypes)
+    view.main(hypes_file, verbose=False)
     eval_image.eval_pickle(hypes,
                            trained,
-                           paramters,
                            test_images_json,
                            out_path,
                            stride=stride)

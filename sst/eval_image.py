@@ -25,16 +25,15 @@ def main(hypes_file, image_path, output_path, stride,
     hypes = utils.load_hypes(hypes_file)
     with Timer() as t:
         model_pickle = hypes['segmenter']['serialized_model_path']
-        nn, nn_params = utils.deserialize_model(model_pickle)
-    assert stride <= nn_params['patch_size']
-    logging.info("Patch size: %i", nn_params['patch_size'])
-    logging.info("Fully: %s", str(nn_params['fully']))
+        nn = utils.deserialize_model(model_pickle)
+    logging.info("Patch size: %i", hypes['segmenter']['patch_size'])
+    logging.info("Fully: %s", str(hypes['segmenter']['fully']))
     logging.info("Stride: %i", stride)
     logging.info("=> elasped deserialize model: %s s", t.secs)
     with Timer() as t:
-        result = eval_net(trained=nn,
+        result = eval_net(hypes=hypes,
+                          trained=nn,
                           photo_path=image_path,
-                          nn_params=nn_params,
                           stride=stride,
                           hard_classification=hard_classification)
     logging.info("=> elasped evaluating model: %s s", t.secs)
@@ -44,9 +43,9 @@ def main(hypes_file, image_path, output_path, stride,
                          hard_classification=hard_classification)
 
 
-def eval_net(trained,
+def eval_net(hypes,
+             trained,
              photo_path,
-             nn_params=None,
              stride=10,
              hard_classification=True,
              verbose=False):
@@ -55,12 +54,12 @@ def eval_net(trained,
 
     Parameters
     ----------
+    hypes : dict
+        Parameters relevant for the model such as patch_size
     trained : theano expression
         A trained neural network
     photo_path : string
         Path to the photo which will get classified
-    nn_params : dict
-        Parameters relevant for the model such as patch_size
     stride : int
     hard_classification : bool
         If True, the image will only show either street or no street.
@@ -72,8 +71,8 @@ def eval_net(trained,
     numpy array
         Segmented image
     """
-    patch_size = nn_params['patch_size']
-    fully = nn_params['fully']
+    patch_size = hypes['segmenter']['patch_size']
+    fully = hypes['segmenter']['fully']
 
     # read images
     feats = utils.load_color_image_features(photo_path)
@@ -115,7 +114,7 @@ def eval_net(trained,
                               patch_center_y - px_left_patchcenter:
                               patch_center_y + px_left_patchcenter + 1,
                               :]
-            if nn_params['flatten']:
+            if hypes['segmenter']['flatten']:
                 new_patch = new_patch.flatten()
             patches.append(new_patch)
 
@@ -126,7 +125,7 @@ def eval_net(trained,
         logging.info("Generated %i patches for evaluation", len(patches))
     to_classify = np.array(patches, dtype=np.float32)
 
-    if not nn_params['flatten']:
+    if not hypes['segmenter']['flatten']:
         x_new = []
         for ac in to_classify:
             c = []
@@ -205,6 +204,8 @@ def eval_net(trained,
                                (np.amax(result2) - np.amin(result2)))
         return result2
     else:
+        if hypes["training"]["one_hot_encoding"]:
+            result = np.argmax(result, axis=1)
         result = result.reshape((new_height, new_width))
 
         # Scale image to correct size
@@ -214,7 +215,6 @@ def eval_net(trained,
 
 def eval_pickle(hypes,
                 trained,
-                nn_params,
                 images_json_path,
                 out_path,
                 stride=1):
@@ -224,10 +224,9 @@ def eval_pickle(hypes,
     Parameters
     ----------
     hypes : dict
+        Parameters relevant for the model (e.g. patch size)
     trained : theano expression
         A trained neural network
-    nn_params : dict
-        nn_params relevant for the model (e.g. patch size)
     images_json_path : str
         Path to a JSON file
     out_path : str
@@ -247,9 +246,9 @@ def eval_pickle(hypes,
                      i + 1,
                      len(list_tuples),
                      total_results)
-        segmentation = eval_net(trained,
+        segmentation = eval_net(hypes,
+                                trained,
                                 photo_path=data_image_path,
-                                nn_params=nn_params,
                                 stride=stride)
         seg_path = os.path.join(out_path, "seg-%i.png" % i)
         overlay_path = os.path.join(out_path, "overlay-%i.png" % i)

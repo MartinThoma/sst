@@ -12,7 +12,7 @@ training.
 
 from __future__ import print_function
 
-import inspect
+# import inspect
 import imp
 import sys
 import os
@@ -85,31 +85,21 @@ def main(hypes_file):
     plt.show()
 
     logging.info("Classes (rel): %s", class_dict_rel)
-    nn_params = {'training': {'image_batch_size': image_batch_size,
-                              'stride': hypes['training']['stride']}}
-
     logging.info("## Network: %s", network_path)
     network = imp.load_source('sst.network', network_path)
     logging.info("Fully network: %s", str(hypes['segmenter']['fully']))
-    nn_params['code'] = inspect.getsource(network)
-    nn_params['fully'] = hypes['segmenter']['fully']
-    nn_params['patch_size'] = hypes['segmenter']['patch_size']
-    nn_params['training_stride'] = hypes['training']['stride']
-    nn_params['flatten'] = hypes['segmenter']['flatten']
-    assert nn_params['patch_size'] > 0
+    # nn_params['code'] = inspect.getsource(network)
 
     # get_features is only called so that the network can be properly generated
     # it is not used for training here
-    if "one_hot_encoding" in hypes["training"] and \
-       hypes["training"]["one_hot_encoding"]:
+    if hypes["training"]["one_hot_encoding"]:
         label_enc = OneHotEncoder(sparse=False)
         label_enc.fit([[i] for i in range(2)])  # len(hypes['classes'])
     labeled_patches = get_patches(hypes,
                                   features[:1],
                                   labels[:1],
-                                  nn_params=nn_params,
-                                  stride=nn_params['training_stride'])
-    feats, _ = get_features(labeled_patches, nn_params)
+                                  stride=hypes['training']['stride'])
+    feats, _ = get_features(hypes, labeled_patches)
     net1 = network.generate_nnet(feats)
 
     # Generate training data and run training
@@ -122,13 +112,11 @@ def main(hypes_file):
         labeled_patches = get_patches(hypes,
                                       features[from_img:to_img],
                                       labels[from_img:to_img],
-                                      nn_params=nn_params,
                                       stride=hypes['training']['stride'])
-        if "one_hot_encoding" in hypes["training"] and \
-           hypes["training"]["one_hot_encoding"]:
+        if hypes["training"]["one_hot_encoding"]:
             labeled_patches[1] = np.reshape(labeled_patches[1], (-1, 1))
             labeled_patches[1] = label_enc.transform(labeled_patches[1])
-        if nn_params['flatten']:
+        if hypes['segmenter']['flatten']:
             new_l = []
             for el in labeled_patches[0]:
                 new_l.append(el.flatten())
@@ -139,12 +127,9 @@ def main(hypes_file):
                       "labeled_patches[1].shape: %s"),
                      labeled_patches[0].shape,
                      labeled_patches[1].shape)
-        net1 = train_nnet(labeled_patches, net1, nn_params)
+        net1 = train_nnet(hypes, labeled_patches, net1)
 
-    model_pickle_name = hypes["segmenter"]["serialized_model_path"]
-    utils.serialize_model(net1,
-                          filename=model_pickle_name,
-                          parameters=nn_params)
+    network.serialize_model(hypes, net1)
 
 
 def load_data_raw_images(hypes,
@@ -235,7 +220,7 @@ def load_data_raw_images(hypes,
     return (xs_colored, yl)
 
 
-def get_patches(hypes, xs, ys, nn_params, stride):
+def get_patches(hypes, xs, ys, stride):
     """
     Get a list of tuples (patch, label).
 
@@ -244,13 +229,13 @@ def get_patches(hypes, xs, ys, nn_params, stride):
 
     Parameters
     ----------
+    hypes : dict
+        All relevant parameters of the model (e.g. patch_size and fully)
     xs : list
         Each element is an image with 3 channels (RGB), but normalized to
         [-1, 1]
     ys : list
         Each element is either 0 or 1
-    nn_params : dict
-        All relevant parameters of the model (e.g. patch_size and fully)
     stride : int
         The smaller this value, the more patches will be created.
 
@@ -259,8 +244,8 @@ def get_patches(hypes, xs, ys, nn_params, stride):
     tuple : (patches, labels)
         Two lists of same length. Patches is
     """
-    patch_size = nn_params['patch_size']
-    fully = nn_params['fully']
+    patch_size = hypes['segmenter']['patch_size']
+    fully = hypes['segmenter']['fully']
     assert stride >= 1, "Stride must be at least 1"
     assert (patch_size) >= 1, "Patch size has to be >= 1"
     assert patch_size % 2 == 1, "Patch size should be odd"
@@ -316,12 +301,13 @@ def get_patches(hypes, xs, ys, nn_params, stride):
                 np.array(labels, dtype=np.int32)]
 
 
-def get_features(labeled_patches, nn_params):
+def get_features(hypes, labeled_patches):
     """
     Get ready-to-use features from labeled patches.
 
     Parameters
     ----------
+    hypes : dict
     labeled_patches : tuple (patches, labels)
 
     Returns
@@ -332,7 +318,7 @@ def get_features(labeled_patches, nn_params):
     feats = labeled_patches[0]
     y = labeled_patches[1]
 
-    if not nn_params['fully']:
+    if not hypes['segmenter']['fully']:
         counter = {}
         for label in y:
             if not isinstance(label, int) and not isinstance(label, np.int32):
@@ -344,7 +330,7 @@ def get_features(labeled_patches, nn_params):
         logging.info("Label distribution: %s", counter)
     logging.info("Feature vectors: %i", len(y))
 
-    if not nn_params['flatten']:
+    if not hypes['segmenter']['flatten']:
         # original shape: (25, 25, 3)
         # desired shape: (3, 25, 25)
         feats_new = []
@@ -358,19 +344,21 @@ def get_features(labeled_patches, nn_params):
     return (feats, y)
 
 
-def train_nnet(labeled_patches, net1, nn_params):
+def train_nnet(hypes, labeled_patches, net1):
     """
     Train a neural network classifier on the patches.
 
     Parameters
     ----------
+    hypes : dict
     labeled_patches : tuple (patches, labels)
+    net1 : model object
 
     Returns
     -------
     trained classifier
     """
-    feats, y = get_features(labeled_patches, nn_params)
+    feats, y = get_features(hypes, labeled_patches)
     print("##### y.shape: %s" % str(y.shape))
     print("##### feats type: %s" % type(feats))
     print("##### feats.shape: %s" % str(feats.shape))

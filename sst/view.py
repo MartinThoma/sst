@@ -1,46 +1,48 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
-Show a network.
-"""
+"""Show a network."""
 
 import logging
 import sys
 import pprint
 
+# Custom modules
+from . import utils
+
 logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
                     level=logging.INFO,
                     stream=sys.stdout)
 
-# Custom modules
-from . import utils
 
-
-def main(model_path, verbose=True):
-    model, parameters = utils.deserialize_model(model_path)
+def main(hypes_file, verbose=True):
+    """Orchestrate."""
+    hypes = utils.load_hypes(hypes_file)
+    # model = utils.deserialize_model(hypes)
     pp = pprint.PrettyPrinter(indent=4)
-    print("# Model: %s" % model_path)
+    print("# Model: %s" % hypes['segmenter']['network_path'])
     if verbose:
-        print("## Code")
-        print(parameters['code'])
-    del(parameters['code'])
+        print("## Hypes")
+        print(hypes)
     print("## Other")
-    pp.pprint(parameters)
+    pp.pprint(hypes)
 
 
 def get_parser():
+    """Get parser for view script."""
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     parser = ArgumentParser(description=__doc__,
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-m', '--model',
-                        dest='model_path',
-                        help='path to the trained .pickle model file',
-                        default=utils.get_model_path(),
-                        metavar='MODEL')
+    parser.add_argument("--hypes",
+                        dest="hypes_file",
+                        type=str,
+                        required=True,
+                        help=("path to a JSON file with "
+                              "contains 'data' (with 'train' and 'test') as "
+                              "well as 'classes' (with 'colors' for each)"))
     return parser
 
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
-    main(args.model_path)
+    main(args.hypes_file)
