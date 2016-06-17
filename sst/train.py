@@ -104,7 +104,8 @@ def main(hypes_file):
        hypes["training"]["one_hot_encoding"]:
         label_enc = OneHotEncoder(sparse=False)
         label_enc.fit([[i] for i in range(2)])  # len(hypes['classes'])
-    labeled_patches = get_patches(features[:1],
+    labeled_patches = get_patches(hypes,
+                                  features[:1],
                                   labels[:1],
                                   nn_params=nn_params,
                                   stride=nn_params['training_stride'])
@@ -118,7 +119,8 @@ def main(hypes_file):
                      from_img,
                      to_img,
                      len(features))
-        labeled_patches = get_patches(features[from_img:to_img],
+        labeled_patches = get_patches(hypes,
+                                      features[from_img:to_img],
                                       labels[from_img:to_img],
                                       nn_params=nn_params,
                                       stride=hypes['training']['stride'])
@@ -232,7 +234,7 @@ def load_data_raw_images(hypes,
     return (xs_colored, yl)
 
 
-def get_patches(xs, ys, nn_params, stride):
+def get_patches(hypes, xs, ys, nn_params, stride):
     """
     Get a list of tuples (patch, label).
 
@@ -301,7 +303,8 @@ def get_patches(xs, ys, nn_params, stride):
     assert len(patches) == len(labels), "len(patches) != len(labels)"
     logging.info("%i patches were generated.", len(patches))
     logging.info("Data before make_equal: %i", len(labels))
-    # patches, labels = utils.make_equal(patches, labels)
+    if 'make_equal' in hypes['training'] and hypes['training']['make_equal']:
+        patches, labels = utils.make_equal(patches, labels)
     # logging.info(labels.shape)
     logging.info("Data after make_equal: %i", len(labels))
     if fully:
