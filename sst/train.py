@@ -126,6 +126,7 @@ def main(hypes_file):
                                       stride=hypes['training']['stride'])
         if "one_hot_encoding" in hypes["training"] and \
            hypes["training"]["one_hot_encoding"]:
+            labeled_patches[1] = np.reshape(labeled_patches[1], (-1, 1))
             labeled_patches[1] = label_enc.transform(labeled_patches[1])
         if nn_params['flatten']:
             new_l = []
@@ -334,7 +335,8 @@ def get_features(labeled_patches, nn_params):
     if not nn_params['fully']:
         counter = {}
         for label in y:
-            label = tuple([int(el) for el in list(label)])
+            if not isinstance(label, int) and not isinstance(label, np.int32):
+                label = tuple([int(el) for el in list(label)])
             if label in counter:
                 counter[label] += 1
             else:
