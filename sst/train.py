@@ -21,6 +21,8 @@ import logging
 import scipy
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import OneHotEncoder
+
 
 from . import utils
 
@@ -52,9 +54,10 @@ def main(hypes_file):
     image_batch_size = hypes['training']['batchsize']
     assert image_batch_size >= 1
     assert hypes['training']['stride'] >= 1
-    features, labels = load_data_raw_images(hypes,
-                                            serialization_path=hypes['data']['serialization'],
-                                            images_json_path=train_images_json)
+    t = load_data_raw_images(hypes,
+                             serialization_path=hypes['data']['serialization'],
+                             images_json_path=train_images_json)
+    features, labels = t
     logging.info("len(features)=%i", len(features))
     logging.info("features.shape=%s", features[0].shape)
     logging.info("labels.shape=%s", labels[0].shape)
@@ -97,6 +100,10 @@ def main(hypes_file):
 
     # get_features is only called so that the network can be properly generated
     # it is not used for training here
+    if "one_hot_encoding" in hypes["training"] and \
+       hypes["training"]["one_hot_encoding"]:
+        label_enc = OneHotEncoder(sparse=False)
+        label_enc.fit([[i] for i in range(2)])  # len(hypes['classes'])
     labeled_patches = get_patches(features[:1],
                                   labels[:1],
                                   nn_params=nn_params,
@@ -115,6 +122,9 @@ def main(hypes_file):
                                       labels[from_img:to_img],
                                       nn_params=nn_params,
                                       stride=hypes['training']['stride'])
+        if "one_hot_encoding" in hypes["training"] and \
+           hypes["training"]["one_hot_encoding"]:
+            labeled_patches[1] = label_enc.transform(labeled_patches[1])
         if nn_params['flatten']:
             new_l = []
             for el in labeled_patches[0]:
@@ -222,7 +232,7 @@ def load_data_raw_images(hypes,
     return (xs_colored, yl)
 
 
-def get_patches(xs, ys, nn_params, stride=49):
+def get_patches(xs, ys, nn_params, stride):
     """
     Get a list of tuples (patch, label).
 
@@ -295,11 +305,11 @@ def get_patches(xs, ys, nn_params, stride=49):
     # logging.info(labels.shape)
     logging.info("Data after make_equal: %i", len(labels))
     if fully:
-        return (np.array(patches, dtype=np.float32),
-                np.array(labels, dtype=np.float32))  # fully needs float labels
+        return [np.array(patches, dtype=np.float32),
+                np.array(labels, dtype=np.float32)]  # fully needs float labels
     else:
-        return (np.array(patches, dtype=np.float32),
-                np.array(labels, dtype=np.int32))
+        return [np.array(patches, dtype=np.float32),
+                np.array(labels, dtype=np.int32)]
 
 
 def get_features(labeled_patches, nn_params):
@@ -319,10 +329,14 @@ def get_features(labeled_patches, nn_params):
     y = labeled_patches[1]
 
     if not nn_params['fully']:
-        logging.info("Street feature vectors: %i",
-                     sum([1 for label in y if label == 0]))
-        logging.info("Non-Street feature vectors: %i",
-                     sum([1 for label in y if label == 1]))
+        counter = {}
+        for label in y:
+            label = tuple([int(el) for el in list(label)])
+            if label in counter:
+                counter[label] += 1
+            else:
+                counter[label] = 1
+        logging.info("Label distribution: %s", counter)
     logging.info("Feature vectors: %i", len(y))
 
     if not nn_params['flatten']:
@@ -352,6 +366,9 @@ def train_nnet(labeled_patches, net1, nn_params):
     trained classifier
     """
     feats, y = get_features(labeled_patches, nn_params)
+    print("##### y.shape: %s" % str(y.shape))
+    print("##### feats type: %s" % type(feats))
+    print("##### feats.shape: %s" % str(feats.shape))
     net1.fit(feats, y)
     return net1
 
