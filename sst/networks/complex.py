@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 
+"""Example for a FCN semantic segmentation."""
+
 import logging
 import lasagne.layers
+from sst import utils
 
 
 class Unpool2DLayer(lasagne.layers.Layer):
-    """This layer performs unpooling over the last two dimensions
-    of a 4D tensor."""
+    """Performs unpooling over the last two dimensions of a 4D tensor."""
 
     def __init__(self, incoming, ds, **kwargs):
         super(Unpool2DLayer, self).__init__(incoming, **kwargs)
@@ -110,3 +112,14 @@ def generate_nnet(feats):
         max_epochs=20,
         verbose=1,)
     return net1
+
+
+def serialize_model(hypes, model):
+    """Serialize a model."""
+    utils.serialize_model(model, hypes["segmenter"]["serialized_model_path"])
+
+
+def load_model(hypes):
+    """Load a serialized model."""
+    filename = hypes["segmenter"]["serialized_model_path"]
+    return utils.deserialize_model_pickle(filename)

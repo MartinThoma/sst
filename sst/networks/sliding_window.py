@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+"""Example for a sliding window approach to semantic segmentation."""
+
 import logging
+from sst import utils
 
 
 def generate_nnet(feats):
@@ -53,3 +56,14 @@ def generate_nnet(feats):
         max_epochs=10,
         verbose=1,)
     return net1
+
+
+def serialize_model(hypes, model):
+    """Serialize a model."""
+    utils.serialize_model(model, hypes["segmenter"]["serialized_model_path"])
+
+
+def load_model(hypes):
+    """Load a serialized model."""
+    filename = hypes["segmenter"]["serialized_model_path"]
+    return utils.deserialize_model_pickle(filename)

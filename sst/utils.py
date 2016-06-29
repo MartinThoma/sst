@@ -159,22 +159,17 @@ def overlay_images(hypes,
     # Replace colors of segmentation to make it easier to see
     width, height = overlay.size
     pix = overlay.load()
-    pixels_debug = list(overlay.getdata())
-    logging.info('%i colors in classification (min=%s, max=%s)',
-                 len(list(set(pixels_debug))),
-                 min(pixels_debug),
-                 max(pixels_debug))
     colors = set()
     for x in range(0, width):
         for y in range(0, height):
             if not hard_classification:
                 overlay.putpixel((x, y), (0, pix[x, y][0], 0))
             else:
-                cl = overlay_arr[y][x]
+                cl = int(overlay_arr[y][x])
                 overlay.putpixel((x, y),
                                  tuple(hypes["classes"][cl]["output"]))
             colors.add(overlay_arr[y][x])
-    logging.info("Colors: %s", str(colors))
+    logging.info("%i colors: %s", len(colors), str(colors))
     background = background.convert('RGB')
     background.paste(overlay, (0, 0), mask=overlay)
     background.save(output_path, 'PNG')
